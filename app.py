@@ -67,15 +67,25 @@ def home():
         f"/api/v1.0/<start>/<end><br/>"
 
     )
-# Precipitation endpoint
+### Precipitation endpoint ###
 @app.route('/api/v1.0/precipitation')
 def precipitation():
     return jsonify(prcp_dict)
-# Stations endpoint
+### Stations endpoint ###
 @app.route('/api/v1.0/stations')
 def stations():
     return jsonify(stations_dict)
-
+### Tobs endpoint ###
+@app.route('/api/v1.0/tobs')
+def tobs():
+    return jsonify(tobs_dict)
+### <start> endpoints ###
+@app.route('/api/v1.0/<date>')
+def start(date):
+    start_results = session.query(Measurement.date, func.avg(Measurement.tobs,func.min(Measurement.tobs),func.max(Measurement.tobs))).\
+                 filter(Measurement.station >= date).\
+                     group_by(Measurement.station).all()
+    return jsonify(start_results)            
 
 # Run Flask app
 if __name__ == '__main__':
