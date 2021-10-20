@@ -6,6 +6,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import create_engine, func
 import datetime as dt
 from flask import Flask, jsonify
+# Import pandas to make dict from dataframes
+import pandas as pd
 
 # Setting up Database
 # Create engine and reflect 
@@ -20,7 +22,35 @@ Base.prepare(engine, reflect=True)
 Station = Base.classes.station
 Measurement = Base.classes.measurement
 
-# Setup Flask
+# Create session
+session = Session(engine)
+
+# Calculate vars for app calculations
+query_date = dt.date(2017, 8,23) - dt.timedelta(days=365)
+results = session.query(Measurement.date, Measurement.prcp).filter(Measurement.date >= query_date).all()
+# Making pandas dataframes
+df = pd.DataFrame(results, columns=['Date', 'Prcp'])
+# Drop the missing frames
+df = df.dropna()
+# Reset dataframe indexc
+df = df.reset_index()
+# Create a dictonary to jsonify results
+prcp_dict = df.to_dict('results')
+
+###
+
+results = session.query(Measurement.station, Measurement.date, Measurement.tobs).\
+    filter(Measurement.station == 'USC00519281').all()
+# Create dict of the stations
+stations = session.query(Station.station, Station.name).all()
+stations_df = pd.DataFrame(stations, columns=['Station', 'Name'])
+stations_dict = stations_df.to_dict('results')
+print(stations_dict)
+# Create dict of the Temp Obs (tobs)
+tobs_df = pd.DataFrame(results, columns=['Station', 'Date', 'Temperature'])
+tobs_dict = tobs_df.to_dict('results')
+
+# Setup Flask App
 app = Flask(__name__)
 
 # Apps Index Route
@@ -37,42 +67,15 @@ def home():
         f"/api/v1.0/<start>/<end><br/>"
 
     )
-###### Precipitation endpoint ######
-@app.route("/api/v1.0/precipitation")
+# Precipitation endpoint
+@app.route('/api/v1.0/precipitation')
 def precipitation():
-    print('Attempting to reach precipitation endpoint')
-    # Set up variables to do calculations with
-    recent_date = dt.date(2017,8,23)
-    query_date = recent_date - dt.timedelta(days=365)
-    active_station = 'USC00519281'
-    # Create connection to DB with session
-    session = Session(engine)
-    # Query the data
-    results = session.query(Measurement.date, Measurement.prcp).\
-        filter(Measurement.date >= query_date).order_by(
-            Measurement.date).all()
-    # Close the session
-    session.close()
-
-    # Appenend and format our results to a list
-    prcp_info = []
-    for date, prcp in results:
-        prcp_dict = {}
-        prcp_dict['date'] = date
-        prcp_dict['prcp'] = prcp
-        prcp_info.append(prcp_dict)
-    # Return the JSONify results
-    return jsonify(prcp_info)
-
-@app.route("/api/v1.0/stations")
+    return jsonify(prcp_dict)
+# Stations endpoint
+@app.route('/api/v1.0/stations')
 def stations():
-    print("Attempting to reach precipitstion endpoint")
-    #pull data
-    session = Session(engine)
-    results = session.query(Station.station, Station.station).all()
-    session.close()
-    #return results
-    return jsonify(results)
+    return jsonify(stations_dict)
+
 
 # Run Flask app
 if __name__ == '__main__':
